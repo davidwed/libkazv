@@ -53,4 +53,49 @@ namespace Kazv
             return {};
         }
     }
+
+    immer::flex_vector<std::string> unknownDevices(VerificationStrategy strategy, DeviceMap devMap)
+    {
+        auto extractDevInfoF = [](auto node) { return node.second; };
+        auto extractDevInfo = zug::map(extractDevInfoF);
+        auto notBlockedP = [](auto dev) {
+            return dev.trustLevel > Blocked;
+        };
+        auto verifiedP = [](auto dev) {
+            return dev.trustLevel >= Verified;
+        };
+        auto unseenP = [](auto dev) {
+            return dev.trustLevel == Unseen;
+        };
+
+        auto notVerifiedP = [verifiedP](auto dev) { return !verifiedP(std::move(dev)); };
+
+        auto devInfoToId = zug::map([](auto dev) { return dev.deviceId; });
+
+        if (strategy == TrustAllStrategy) {
+            return {};
+        } else if (strategy == VerifyAllStrategy) {
+            return intoImmer(
+                immer::flex_vector<std::string>{},
+                extractDevInfo | zug::filter(unseenP) | devInfoToId,
+                devMap
+            );
+        } else if (strategy == TrustIfNeverVerifiedStrategy) {
+            if (std::all_of(devMap.begin(), devMap.end(),
+                [=](auto node) {
+                    return notVerifiedP(extractDevInfoF(std::move(node)));
+                })) {
+                return {};
+            } else {
+                return intoImmer(
+                    immer::flex_vector<std::string>{},
+                    extractDevInfo | zug::filter(unseenP) | devInfoToId,
+                    devMap
+                );
+            }
+        } else {
+            assert(false);
+            return {};
+        }
+    }
 }
