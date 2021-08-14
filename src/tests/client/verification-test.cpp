@@ -77,3 +77,27 @@ TEST_CASE("verification strategies should work", "[client][verification]")
 
     REQUIRE(isEquiv(unknownDevices(TrustIfNeverVerifiedStrategy, devMap2), {}));
 }
+
+TEST_CASE("check unknown sessions according to trust level and verification strategy", "[client][verification]")
+{
+    ClientModel c;
+    c.deviceLists.deviceLists = immer::map<std::string, DeviceMapT>()
+        .set("@u1:e.o", devMap1)
+        .set("@u2:e.o", devMap2)
+        .set("@u3:e.o", devMap3)
+        .set("@u4:e.o", devMap4);
+
+    c.verificationStrategy = TrustAllStrategy;
+    REQUIRE(isEquiv(c.devicesToSendKeys("@u1:e.o"), {"foo", "bar", "doge"}));
+    REQUIRE(isEquiv(c.unknownDevices("@u1:e.o"), {}));
+
+    c.verificationStrategy = VerifyAllStrategy;
+    REQUIRE(isEquiv(c.devicesToSendKeys("@u1:e.o"), {"doge"}));
+    REQUIRE(isEquiv(c.unknownDevices("@u1:e.o"), {"foo"}));
+
+    c.verificationStrategy = TrustIfNeverVerifiedStrategy;
+    REQUIRE(isEquiv(c.devicesToSendKeys("@u1:e.o"), {"doge"}));
+    REQUIRE(isEquiv(c.devicesToSendKeys("@u2:e.o"), {"foo", "bar"}));
+    REQUIRE(isEquiv(c.unknownDevices("@u1:e.o"), {"foo"}));
+    REQUIRE(isEquiv(c.unknownDevices("@u2:e.o"), {}));
+}

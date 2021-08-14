@@ -237,26 +237,16 @@ namespace Kazv
 
     immer::flex_vector<std::string /* deviceId */> ClientModel::devicesToSendKeys(std::string userId) const
     {
-        auto trustLevelNeeded = DeviceTrustLevel::Unseen;
-
-        // XXX: preliminary approach
-        auto shouldSendP = [=](auto deviceInfo, auto /* deviceMap */) {
-                               return deviceInfo.trustLevel >= trustLevelNeeded;
-                           };
-
-
         auto devices = deviceLists.devicesFor(userId);
 
-        return intoImmer(
-            immer::flex_vector<std::string>{},
-            zug::filter([=](auto n) {
-                         auto [id, dev] = n;
-                         return shouldSendP(dev, devices);
-                     })
-            | zug::map([=](auto n) {
-                           return n.first;
-                       }),
-            devices);
+        return devicesToSend(verificationStrategy, devices);
+    }
+
+    immer::flex_vector<std::string /* deviceId */> ClientModel::unknownDevices(std::string userId) const
+    {
+        auto devices = deviceLists.devicesFor(userId);
+
+        return ::Kazv::unknownDevices(verificationStrategy, devices);
     }
 
     std::size_t ClientModel::numOneTimeKeysNeeded() const

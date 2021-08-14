@@ -45,6 +45,8 @@
 #include "device-list-tracker.hpp"
 #include "room/room-model.hpp"
 
+#include "verification-strategy.hpp"
+
 namespace Kazv
 {
     inline const std::string DEFTXNID{"0"};
@@ -99,8 +101,13 @@ namespace Kazv
         bool identityKeysUploaded{false};
 
         DeviceListTracker deviceLists;
+        VerificationStrategy verificationStrategy{TrustIfNeverVerifiedStrategy};
 
+        /// @return The list of devices we want to send keys to without making the user confirm manually
         immer::flex_vector<std::string /* deviceId */> devicesToSendKeys(std::string userId) const;
+
+        /// @return The list of devices we should let the user confirm manually before sending
+        immer::flex_vector<std::string /* deviceId */> unknownDevices(std::string userId) const;
 
         std::pair<Event, std::optional<std::string> /* sessionKey */>
         megOlmEncrypt(Event e, std::string roomId, Timestamp timeMs, RandomData random);
@@ -459,6 +466,7 @@ namespace Kazv
             & m.identityKeysUploaded
 
             & m.deviceLists
+            & m.verificationStrategy
             ;
     }
 }
