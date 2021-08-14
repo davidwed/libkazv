@@ -70,6 +70,7 @@ namespace Kazv
     struct ClaimKeysAction;
     struct EncryptMegOlmEventAction;
     struct EncryptOlmEventAction;
+    struct SetVerificationStrategyAction;
 
     struct ResubmitJobAction;
 
@@ -117,6 +118,7 @@ namespace Kazv
         ClaimKeysAction,
         EncryptMegOlmEventAction,
         EncryptOlmEventAction,
+        SetVerificationStrategyAction,
 
         ResubmitJobAction
         >;

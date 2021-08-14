@@ -434,6 +434,11 @@ namespace Kazv
         RandomData random;
     };
 
+    struct SetVerificationStrategyAction
+    {
+        VerificationStrategy verificationStrategy;
+    };
+
 
     template<class Archive>
     void serialize(Archive &ar, ClientModel &m, std::uint32_t const /*version*/)

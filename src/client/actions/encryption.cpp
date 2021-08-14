@@ -596,4 +596,11 @@ namespace Kazv
             }
         };
     }
+
+    ClientResult updateClient(ClientModel m, SetVerificationStrategyAction a)
+    {
+        m.verificationStrategy = a.verificationStrategy;
+
+        return { std::move(m), lager::noop };
+    }
 }

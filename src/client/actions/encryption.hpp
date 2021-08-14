@@ -42,4 +42,6 @@ namespace Kazv
     ClientResult updateClient(ClientModel m, EncryptMegOlmEventAction a);
 
     ClientResult updateClient(ClientModel m, EncryptOlmEventAction a);
+
+    ClientResult updateClient(ClientModel m, SetVerificationStrategyAction a);
 }

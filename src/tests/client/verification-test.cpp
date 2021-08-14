@@ -101,3 +101,13 @@ TEST_CASE("check unknown sessions according to trust level and verification stra
     REQUIRE(isEquiv(c.unknownDevices("@u1:e.o"), {"foo"}));
     REQUIRE(isEquiv(c.unknownDevices("@u2:e.o"), {}));
 }
+
+TEST_CASE("SetVerificationStrategyAction should work", "[client][verification]")
+{
+    ClientModel c;
+    auto [c1, _ignore] = ClientModel::update(c, SetVerificationStrategyAction{TrustAllStrategy});
+    REQUIRE(c1.verificationStrategy == TrustAllStrategy);
+
+    auto [c2, _ignore2] = ClientModel::update(c1, SetVerificationStrategyAction{VerifyAllStrategy});
+    REQUIRE(c2.verificationStrategy == VerifyAllStrategy);
+}
