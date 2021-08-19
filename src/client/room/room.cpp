@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Tusooa Zhu <tusooa@vista.aero>
+ * Copyright (C) 2021 Tusooa Zhu <tusooa@kazv.moe>
  *
  * This file is part of libkazv.
  *
@@ -374,5 +374,28 @@ namespace Kazv
         using namespace CursorOp;
         return m_ctx.dispatch(PaginateTimelineAction{
                 +roomId(), eventId, std::nullopt});
+    }
+
+    lager::reader<bool> Room::hasUnknownDevices() const
+    {
+        return this->unknownDevices()
+            .map(&UserIdToDeviceIdMap::empty)
+            .map([](auto x) { return !x; });
+    }
+
+    lager::reader<UserIdToDeviceIdMap> Room::unknownDevices() const
+    {
+        auto client = sdkCursor().map(&SdkModel::c).make();
+        return lager::with(client, members())
+            .map([](const auto &client, const auto &userIds) {
+                return intoImmer(UserIdToDeviceIdMap{},
+                    zug::map([&](const auto &userId) {
+                        return std::make_pair(userId, client.unknownDevices(userId));
+                    })
+                    | zug::filter([&](const auto &pair) {
+                        return !pair.second.empty();
+                    }),
+                    userIds);
+            });
     }
 }

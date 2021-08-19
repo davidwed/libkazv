@@ -334,8 +334,7 @@ TEST_CASE("Sync should record state events in timeline", "[client][sync]")
 
     auto resp = createResponse("Sync", stateInTimelineResponseJson, json{{"is", "initial"}});
 
-    auto client = Client(store.reader().map([](auto c) { return SdkModel{c}; }), store,
-                         std::nullopt);
+    auto client = clientFromStoreWithoutDeps(store);
 
     store.dispatch(ProcessResponseAction{resp});
 

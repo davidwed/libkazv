@@ -34,6 +34,7 @@
 
 #include "sdk-model.hpp"
 #include "client-model.hpp"
+#include "client-types.hpp"
 #include "room-model.hpp"
 #include <cursorutil.hpp>
 #include "sdk-model-cursor-tag.hpp"
@@ -476,6 +477,24 @@ namespace Kazv
          * to be failed.
          */
         PromiseT paginateBackFromEvent(std::string eventId) const;
+
+        /**
+         * Get whether this room has unknown devices. This depends on
+         * the verification strategy of the client.
+         *
+         * @return A lager::reader containing whether this room
+         * has unknown devices.
+         */
+        lager::reader<bool> hasUnknownDevices() const;
+
+        /**
+         * Get unknown devices in this room. This depends on
+         * the verification strategy of the client.
+         *
+         * @return A lager::reader containing the unknown devices
+         * in this room.
+         */
+        lager::reader<UserIdToDeviceIdMap> unknownDevices() const;
 
     private:
         const lager::reader<SdkModel> &sdkCursor() const;

@@ -8,13 +8,19 @@
 
 #include <catch2/catch.hpp>
 
+#include <boost/asio.hpp>
+#include <asio-promise-handler.hpp>
+
 #include <verification-strategy.hpp>
 #include <client-model.hpp>
 
+#include <client-types.hpp>
+
+#include "client-test-util.hpp"
+
 using namespace Kazv;
 
-using DeviceMapT = immer::map<std::string, DeviceKeyInfo>;
-using DeviceIdList = immer::flex_vector<std::string>;
+using DeviceMapT = DeviceMap;
 
 static DeviceKeyInfo genInfo(std::string id, DeviceTrustLevel level)
 {
@@ -110,4 +116,67 @@ TEST_CASE("SetVerificationStrategyAction should work", "[client][verification]")
 
     auto [c2, _ignore2] = ClientModel::update(c1, SetVerificationStrategyAction{VerifyAllStrategy});
     REQUIRE(c2.verificationStrategy == VerifyAllStrategy);
+}
+
+static void addRoomMember(RoomModel &r, std::string userId)
+{
+    auto memberEv = Event{json{
+        {"state_key", userId},
+        {"type", "m.room.member"},
+        {"origin_server_ts", 1},
+        {"room_id", r.roomId},
+        {"content", {
+            {"membership", "join"},
+            {"displayname", userId},
+        }},
+        {"sender", userId},
+        {"event_id", "$" + userId},
+    }};
+    r.stateEvents = std::move(r.stateEvents)
+        .set(keyOfState(memberEv), memberEv);
+}
+
+TEST_CASE("Check for unknown sessions in Room", "[client][verification]")
+{
+    using namespace Kazv::CursorOp;
+
+    boost::asio::io_context io;
+    AsioPromiseHandler ph{io.get_executor()};
+
+    auto initModel = ClientModel{};
+
+    initModel.deviceLists.deviceLists =
+        immer::map<std::string, DeviceMapT>()
+        .set("@u1:e.o", devMap1)
+        .set("@u2:e.o", devMap2)
+        .set("@u3:e.o", devMap3)
+        .set("@u4:e.o", devMap4);
+
+    auto exampleRoom = RoomModel{};
+
+    auto roomId = std::string("!example:room.org");
+    exampleRoom.roomId = roomId;
+    addRoomMember(exampleRoom, "@u1:e.o");
+    addRoomMember(exampleRoom, "@u2:e.o");
+    addRoomMember(exampleRoom, "@u3:e.o");
+    addRoomMember(exampleRoom, "@u4:e.o");
+
+    initModel.roomList.rooms = initModel.roomList.rooms.set(
+        roomId, exampleRoom);
+
+    initModel.verificationStrategy = TrustIfNeverVerifiedStrategy;
+
+    auto store = createTestClientStoreFrom(initModel, ph);
+
+    auto client = clientFromStoreWithoutDeps(store);
+
+    auto r = client.room("!example:room.org");
+
+    REQUIRE(+r.hasUnknownDevices());
+
+    auto expectedUnknownDevices =
+        UserIdToDeviceIdMap{}
+        .set("@u1:e.o", DeviceIdList{"foo"});
+
+    REQUIRE(+r.unknownDevices() == expectedUnknownDevices);
 }

@@ -27,6 +27,8 @@
 
 #include <client/client-model.hpp>
 #include <base/basejob.hpp>
+#include <client.hpp>
+
 using namespace Kazv;
 
 ClientModel createTestClientModel();
@@ -63,4 +65,12 @@ inline auto createTestClientStoreFrom(ClientModel m, SingleTypePromiseInterface<
         std::move(m),
         &ClientModel::update,
         std::move(ph));
+}
+
+template<class Store>
+inline auto clientFromStoreWithoutDeps(Store &store)
+{
+    return Client(
+        store.reader().map([](auto c) { return SdkModel{c}; }), store,
+        std::nullopt);
 }
