@@ -23,6 +23,7 @@ namespace Kazv
         {
             std::string userId;
             immer::flex_vector<std::string> deviceIds;
+            nlohmann::json event;
         };
 
         struct DisplayCodes
@@ -70,6 +71,13 @@ namespace Kazv
          */
         VerificationTrackerResult process(const nlohmann::json &event, RandomData random, Timestamp ts);
 
+        /**
+         * Create a new verification request.
+         *
+         * @param userId The user id of the user to verify.
+         * @param deviceIds The device ids of the devices to verify.
+         * @param ts The current timestamp.
+         */
         VerificationTrackerResult requestVerification(std::string userId, immer::flex_vector<std::string> deviceIds, Timestamp ts);
     };
 }

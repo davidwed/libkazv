@@ -101,4 +101,9 @@ namespace Kazv
 
         return 0;
     }
+
+    VerificationTrackerResult VerificationTracker::process(const nlohmann::json &event, RandomData random, Timestamp ts)
+    {
+        return {};
+    }
 }

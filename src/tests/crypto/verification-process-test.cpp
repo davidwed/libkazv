@@ -146,6 +146,43 @@ static auto malformedEvent = R"({
     "type": "moe.kazv.mxc.key.verification.unknown"
 })"_json;
 
+static bool displays(const VerificationTrackerAction &action)
+{
+    return
+        !std::holds_alternative<VerificationTrackerActions::DisplayCodes>(action)
+        && !std::holds_alternative<VerificationTrackerActions::ShowStatus>(action);
+}
+
+static bool displaysNothing(VerificationTrackerResult res)
+{
+    return std::all_of(res.begin(), res.end(), [](const auto &action) {
+        return !displays(action);
+    });
+}
+
+static bool sendsEventOfType(VerificationTrackerResult res, std::string type)
+{
+    return std::any_of(res.begin(), res.end(), [=](const auto &action) {
+        return std::holds_alternative<VerificationTrackerActions::SendEvent>(action)
+            && std::get<VerificationTrackerActions::SendEvent>(action)
+            .event
+            .at("type")
+            .template get<std::string>() == type;
+    });
+}
+
+static bool sendsCancellation(VerificationTrackerResult res)
+{
+    return sendsEventOfType(res, "m.key.verification.cancel");
+}
+
+static bool sendsNothing(VerificationTrackerResult res)
+{
+    return std::all_of(res.begin(), res.end(), [](const auto &action) {
+        return !std::holds_alternative<VerificationTrackerActions::SendEvent>(action);
+    });
+}
+
 // TEST_CASE("Construct sas verification process", "[client][verification-proc]")
 // {
 //     auto proc1 = SASVerificationProcess();
@@ -189,4 +226,50 @@ TEST_CASE("VerificationTracker processRandomSize", "[client][verification-proc]"
 
     REQUIRE(VerificationTracker::processRandomSize(unknownEvent) == 0);
     REQUIRE(VerificationTracker::processRandomSize(malformedEvent) == 0);
+}
+
+TEST_CASE("VerificationTracker process() error handling", "[client][verification-proc]")
+{
+    auto reqRandomSize = VerificationTracker::processRandomSize(requestEvent);
+    auto random = genRandomData(reqRandomSize);
+
+    auto tracker = VerificationTracker{};
+
+    auto afterReasonablyShortTime = requestEvent["content"]["timestamp"].template get<Timestamp>() + 1;
+
+    WHEN ("processing a request way long ago") {
+        auto afterTenMins = requestEvent["content"]["timestamp"].template get<Timestamp>() + 10 * 60 * 1000 + 1;
+        auto res = tracker.process(requestEvent, random, afterTenMins);
+
+        THEN ("we should ignore and send cancellation") {
+            REQUIRE(displaysNothing(res));
+            REQUIRE(sendsCancellation(res));
+        }
+    }
+
+    WHEN ("processing a request way in the future") {
+        auto beforeFiveMins = requestEvent["content"]["timestamp"].template get<Timestamp>() - 5 * 60 * 1000 - 1;
+        auto res = tracker.process(requestEvent, random, beforeFiveMins);
+
+        THEN ("we should ignore and send cancellation") {
+            REQUIRE(displaysNothing(res));
+            REQUIRE(sendsCancellation(res));
+        }
+    }
+
+    WHEN ("processing a non-request, non-cancel event whose transaction id is never encountered") {
+        auto res = tracker.process(sasAcceptEvent, random, afterReasonablyShortTime);
+        THEN ("we should ignore and send cancellation") {
+            REQUIRE(displaysNothing(res));
+            REQUIRE(sendsCancellation(res));
+        }
+    }
+
+    WHEN ("processing a cancel event whose transaction id is never encountered") {
+        auto res = tracker.process(cancelEvent, random, afterReasonablyShortTime);
+        THEN ("we should ignore only") {
+            REQUIRE(displaysNothing(res));
+            REQUIRE(sendsNothing(res));
+        }
+    }
 }
