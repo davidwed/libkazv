@@ -30,6 +30,7 @@ add_executable(kazvtest
   event-emitter-test.cpp
   crypto-test.cpp
   crypto/deterministic-test.cpp
+  crypto/verification-process-test.cpp
   promise-test.cpp
   store-test.cpp
   file-desc-test.cpp
