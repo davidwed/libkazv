@@ -8,6 +8,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <iostream>
+
 #include <verification-process.hpp>
 #include <verification-tracker.hpp>
 
@@ -149,8 +151,13 @@ static auto malformedEvent = R"({
 static bool displays(const VerificationTrackerAction &action)
 {
     return
-        !std::holds_alternative<VerificationTrackerActions::DisplayCodes>(action)
-        && !std::holds_alternative<VerificationTrackerActions::ShowStatus>(action);
+        std::holds_alternative<VerificationTrackerActions::DisplayCodes>(action)
+        || std::holds_alternative<VerificationTrackerActions::ShowStatus>(action);
+}
+
+static bool displaysCode(const VerificationTrackerAction &action)
+{
+    return std::holds_alternative<VerificationTrackerActions::DisplayCodes>(action);
 }
 
 static bool displaysNothing(VerificationTrackerResult res)
@@ -174,6 +181,39 @@ static bool sendsEventOfType(VerificationTrackerResult res, std::string type)
 static bool sendsCancellation(VerificationTrackerResult res)
 {
     return sendsEventOfType(res, "m.key.verification.cancel");
+}
+
+static bool sendsRequest(VerificationTrackerResult res)
+{
+    return sendsEventOfType(res, "m.key.verification.request");
+}
+
+static bool sendsStart(VerificationTrackerResult res)
+{
+    return sendsEventOfType(res, "m.key.verification.start");
+}
+
+static bool sendsAccept(VerificationTrackerResult res)
+{
+    return sendsEventOfType(res, "m.key.verification.accept");
+}
+
+static bool sendsKey(VerificationTrackerResult res)
+{
+    return sendsEventOfType(res, "m.key.verification.key");
+}
+
+static bool sendsMac(VerificationTrackerResult res)
+{
+    return sendsEventOfType(res, "m.key.verification.mac");
+}
+
+static nlohmann::json firstEventSent(VerificationTrackerResult res)
+{
+    auto it = std::find_if(res.begin(), res.end(), [](const auto &action) {
+        return std::holds_alternative<VerificationTrackerActions::SendEvent>(action);
+    });
+    return std::get<VerificationTrackerActions::SendEvent>(*it).event;
 }
 
 static bool sendsNothing(VerificationTrackerResult res)
@@ -271,5 +311,74 @@ TEST_CASE("VerificationTracker process() error handling", "[client][verification
             REQUIRE(displaysNothing(res));
             REQUIRE(sendsNothing(res));
         }
+    }
+}
+
+TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
+{
+    auto alice = VerificationTracker("@alice:example.org", "AliceDevice1");
+    auto bob = VerificationTracker("@bob:example.org", "BobDevice1");
+
+    auto ts = 1000;
+    auto requestRes = alice.requestVerification("@bob:example.org", {"BobDevice1"}, ts);
+
+    THEN ("Alice should send a request event and notify") {
+        REQUIRE(sendsRequest(requestRes));
+    }
+    auto requestEvent = firstEventSent(requestRes);
+
+    auto processRequestRes = bob.process(requestEvent,
+        genRandomData(VerificationTracker::processRandomSize(requestEvent)), ts);
+    THEN ("Bob should notify first and start sas") {
+        REQUIRE(displays(processRequestRes.at(0)));
+        REQUIRE(sendsStart(processRequestRes));
+    }
+    auto startEvent = firstEventSent(processRequestRes);
+
+    auto processStartRes = alice.process(startEvent,
+        genRandomData(VerificationTracker::processRandomSize(startEvent)), ts);
+    THEN ("Alice should notify first and accept sas") {
+        REQUIRE(displays(processStartRes.at(0)));
+        REQUIRE(sendsAccept(processStartRes));
+    }
+    auto acceptEvent = firstEventSent(processStartRes);
+
+    auto processAcceptRes = bob.process(acceptEvent,
+        genRandomData(VerificationTracker::processRandomSize(acceptEvent)), ts);
+    THEN ("Bob should notify and send key") {
+        REQUIRE(!displaysNothing(processAcceptRes));
+        REQUIRE(sendsKey(processAcceptRes));
+    }
+    auto bobKeyEvent = firstEventSent(processAcceptRes);
+
+    auto aliceProcessKeyRes = alice.process(bobKeyEvent,
+        genRandomData(VerificationTracker::processRandomSize(bobKeyEvent)), ts);
+    THEN ("Alice should send key and display code") {
+        REQUIRE(!displaysNothing(aliceProcessKeyRes));
+        REQUIRE(sendsKey(aliceProcessKeyRes));
+    }
+    auto aliceKeyEvent = firstEventSent(aliceProcessKeyRes);
+
+    auto bobProcessKeyRes = bob.process(aliceKeyEvent,
+        genRandomData(VerificationTracker::processRandomSize(aliceKeyEvent)), ts);
+    THEN ("Bob should display code first and send mac") {
+        REQUIRE(displaysCode(bobProcessKeyRes.at(0)));
+        REQUIRE(sendsMac(bobProcessKeyRes));
+    }
+    auto bobMacEvent = firstEventSent(bobProcessKeyRes);
+
+    auto aliceProcessMacRes = alice.process(bobMacEvent,
+        genRandomData(VerificationTracker::processRandomSize(bobMacEvent)), ts);
+    THEN ("Alice should send mac and show success") {
+        REQUIRE(sendsMac(aliceProcessMacRes));
+        REQUIRE(!displaysNothing(aliceProcessMacRes));
+    }
+    auto aliceMacEvent = firstEventSent(aliceProcessMacRes);
+
+    auto bobProcessMacRes = bob.process(aliceMacEvent,
+        genRandomData(VerificationTracker::processRandomSize(aliceMacEvent)), ts);
+    THEN ("Bob should show success") {
+        REQUIRE(sendsNothing(bobProcessMacRes));
+        REQUIRE(!displaysNothing(bobProcessMacRes));
     }
 }

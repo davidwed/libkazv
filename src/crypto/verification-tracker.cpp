@@ -62,6 +62,24 @@ namespace Kazv
                 && event["content"]["transaction_id"].is_string());
     }
 
+    struct VerificationTracker::Private
+    {
+    };
+
+    VerificationTracker::VerificationTracker()
+    {
+    }
+
+    VerificationTracker::VerificationTracker(std::string userId, std::string deviceId)
+    {
+    }
+
+    KAZV_DEFINE_COPYABLE_UNIQUE_PTR(VerificationTracker, m_d);
+
+    VerificationTracker::~VerificationTracker()
+    {
+    }
+
     std::size_t VerificationTracker::processRandomSize(const nlohmann::json &event)
     {
         if (!isEventWellFormed(event)) {
@@ -103,6 +121,12 @@ namespace Kazv
     }
 
     VerificationTrackerResult VerificationTracker::process(const nlohmann::json &event, RandomData random, Timestamp ts)
+    {
+        return {};
+    }
+
+    VerificationTrackerResult VerificationTracker::requestVerification(
+        std::string userId, immer::flex_vector<std::string> deviceIds, Timestamp ts)
     {
         return {};
     }

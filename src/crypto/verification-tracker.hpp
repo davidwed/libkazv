@@ -58,6 +58,23 @@ namespace Kazv
     {
     public:
         /**
+         * Construct an invalid verification tracker.
+         */
+        VerificationTracker();
+
+        /**
+         * Construct an verification tracker for a specific device.
+         *
+         * @param userId The user id for the current user.
+         * @param deviceId the device id for the current device.
+         */
+        VerificationTracker(std::string userId, std::string deviceId);
+
+        KAZV_DECLARE_COPYABLE(VerificationTracker);
+
+        ~VerificationTracker();
+
+        /**
          * @return The random size needed for process().
          */
         static std::size_t processRandomSize(const nlohmann::json &event);
@@ -79,5 +96,9 @@ namespace Kazv
          * @param ts The current timestamp.
          */
         VerificationTrackerResult requestVerification(std::string userId, immer::flex_vector<std::string> deviceIds, Timestamp ts);
+
+    private:
+        struct Private;
+        std::unique_ptr<Private> m_d;
     };
 }
