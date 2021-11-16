@@ -1,0 +1,30 @@
+pkgname=cpr
+pkgver=1.6.0
+pkgrel=0
+pkgdesc="C++ Requests: Curl for People, a spiritual port of Python Requests."
+license=MIT
+arch=x86_64
+url="https://docs.libcpr.org/"
+source="https://codeload.github.com/libcpr/cpr/tar.gz/refs/tags/1.6.0"
+makedepends="cmake git"
+depends="openssl-dev curl-dev"
+
+unpack() {
+    cd $srcdir
+    tar -xf $pkgver
+}
+
+build() {
+    mkdir ${builddir}/build
+    cd ${builddir}/build
+    cmake .. -DCMAKE_INSTALL_PREFIX="$pkgdir" -DCPR_FORCE_USE_SYSTEM_CURL=ON -DCPR_FORCE_OPENSSL_BACKEND=ON -DCPR_BUILD_TESTS=OFF -DBUILD_SHARED_LIBS=ON
+    make
+}
+
+package() {
+    cd ${builddir}/build
+    make install
+}
+sha512sums="
+5e39f40f59a68e17b121dbe13cf3b64a4f90289f9f23b61c2cdea0b866db9702c036ccf033844ca85f9fed0105e183503e29229949d1bb9a32e0e11b7b2fa73a  1.6.0
+"
