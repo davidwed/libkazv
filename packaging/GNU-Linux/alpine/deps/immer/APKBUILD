@@ -1,0 +1,29 @@
+pkgname=immer
+pkgver=0.7.0
+pkgrel=0
+pkgdesc="Postmodern immutable and persistent data structures for C++ — value semantics at scale"
+license=BSL-1.0
+arch=x86_64
+url="sinusoid.es/immer/"
+source="https://codeload.github.com/arximboldi/immer/tar.gz/refs/tags/v0.7.0"
+makedepends="cmake"
+
+unpack() {
+    cd $srcdir
+    tar -xf v0.7.0
+}
+
+build() {
+    mkdir ${builddir}/build
+    cd ${builddir}/build
+    cmake .. -DCMAKE_INSTALL_PREFIX="$pkgdir" -Dimmer_BUILD_TESTS=OFF -Dimmer_BUILD_EXAMPLES=OFF -Dimmer_BUILD_DOCS=OFF -Dimmer_BUILD_EXTRAS=OFF
+    make
+}
+
+package() {
+    cd ${builddir}/build
+    make install
+}
+sha512sums="
+916ead5b01c338d14a22e73257bc979118b475c59393acd4e0ad56f0364a907fa5bf0ef3a5fcc82b4f8defbb2fd3129cfb7deba6f2aa23fc550479243aac4060  v0.7.0
+"
