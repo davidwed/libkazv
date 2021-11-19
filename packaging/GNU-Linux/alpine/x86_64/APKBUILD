@@ -1,0 +1,61 @@
+pkgname=libkazv
+pkgver=0.1.0_git20210724
+pkgrel=0
+pkgdesc="libkazv is a matrix client sdk built upon lager and the value-oriented design it enables."
+license=AGPL-3.0
+arch=x86_64
+url="https://lily.kazv.moe/kazv/libkazv"
+source="https://lily.kazv.moe/kazv/libkazv/-/archive/servant/libkazv-servant.tar.gz"
+builddir="${srcdir}/libkazv-servant"
+makedepends="cmake"
+depends="boost-dev catch2 nlohmann-json olm-dev"
+
+DEPS_INSTALL_DIR="${startdir}/deps"
+JOBS=5
+
+unpack() {
+    cd $srcdir
+    tar -xf libkazv-servant.tar.gz
+}
+
+build() {
+    mkdir ${srcdir}/deps
+    cd ${srcdir}/deps
+    
+    # build depends. 
+    ## zug
+    git clone https://github.com/arximboldi/zug.git
+    cd zug
+    mkdir build && cd build
+    cmake .. -DCMAKE_INSTALL_PREFIX="$DEPS_INSTALL_DIR" -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_DIR" -Dzug_BUILD_TESTS=OFF -Dzug_BUILD_EXAMPLES=OFF -Dzug_BUILD_DOCS=OFF
+    make -j$JOBS install
+    cd ../..
+    rm -rf zug
+
+    ## lager
+    git clone https://github.com/arximboldi/lager.git 
+    cd lager 
+    mkdir build && cd build 
+    cmake .. -DCMAKE_INSTALL_PREFIX="$DEPS_INSTALL_DIR" -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_DIR" -Dlager_BUILD_TESTS=OFF -Dlager_BUILD_EXAMPLES=OFF -Dlager_BUILD_DOCS=OFF && \
+    make -j$JOBS install 
+    cd ../.. 
+    rm -rf lager
+
+
+    # build libkazv
+    ls
+    mkdir ${builddir}/build
+    cd ${builddir}/build
+    cmake .. -DCMAKE_PREFIX_PATH="$DEPS_INSTALL_DIR" -DCMAKE_INSTALL_PREFIX="$pkgdir" -Dlibkazv_BUILD_EXAMPLES=OFF
+    make
+}
+
+package() {
+    cd ${builddir}/build
+    make install
+    cp -r ${startdir}/deps/* ${pkgdir}
+    rm -rf ${startdir}/deps 
+}
+sha512sums="
+7b757f577be66f16ab144d7a713def295ce9769d0c7c91645492f636447e9406fd77529e920384ea847a9605e66287b9c3ca9427b8e5252d83bafc7cc782a8f5  libkazv-servant.tar.gz
+"
