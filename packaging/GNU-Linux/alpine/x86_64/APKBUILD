@@ -7,8 +7,8 @@ arch=x86_64
 url="https://lily.kazv.moe/kazv/libkazv"
 source="https://lily.kazv.moe/kazv/libkazv/-/archive/servant/libkazv-servant.tar.gz"
 builddir="${srcdir}/libkazv-servant"
-makedepends="cmake"
-depends="boost-dev catch2 nlohmann-json olm-dev curl-dev"
+makedepends="cmake boost-dev olm-dev curl-dev"
+depends="catch2 nlohmann-json"
 JOBS=5
 
 unpack() {
