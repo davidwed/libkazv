@@ -6,3 +6,5 @@ doc
 .#*
 TAGS
 build-*
+packaging/GNU-Linux/alpine/**/src
+packaging/GNU-Linux/alpine/**/pkg
