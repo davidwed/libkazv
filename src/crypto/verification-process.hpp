@@ -47,12 +47,20 @@ namespace Kazv
          */
         struct OutgoingTag {};
 
+        inline static immer::flex_vector<std::string> supportedHashes = {"sha256"};
+        inline static immer::flex_vector<std::string> supportedKeyAgreementProtocols = {"curve25519-hkdf-sha256"};
+        inline static immer::flex_vector<std::string> supportedMessageAuthenticationCodes = {"hkdf-hmac-sha256"};
         inline static immer::flex_vector<std::string> defaultShortAuthenticationString = {"emoji", "decimal"};
 
         /**
          * The random size needed to construct an instance.
          */
         static std::size_t constructRandomSize();
+
+        /**
+         * The name of this verification method.
+         */
+        static inline std::string name() { return "m.sas.v1"; }
 
         /**
          * Construct an empty SASVerificationProcess.
@@ -121,12 +129,12 @@ namespace Kazv
         std::string setTheirCommitment();
 
         /**
-         * Get the json of the m.verification.start event to send.
+         * Get the content of the m.verification.start event to send.
          * Only available if this is outgoing.
          *
-         * @return The json of the m.verification.start event to send.
+         * @return The content of the m.verification.start event to send.
          */
-        nlohmann::json startEvent() const;
+        nlohmann::json startEventContent() const;
 
     private:
         struct Private;
@@ -136,10 +144,13 @@ namespace Kazv
     class VerificationProcess
     {
     public:
+        /// Annotate that this process is used in to-device events.
         struct ToDeviceTag {};
 
+        /// Annotate that this process is used in room events.
         struct ToRoomTag {};
 
+        /// Construct an invalid VerificationProcess.
         VerificationProcess();
 
         /**
@@ -152,9 +163,23 @@ namespace Kazv
         ~VerificationProcess();
 
         /**
-         * The methods this process supports.
+         * @return The methods this process supports.
          */
         immer::flex_vector<std::string> methods() const;
+
+        /**
+         * Restrict the methods to use.
+         *
+         * @param newMethods The list of methods we got from a ready event.
+         */
+        void restrictMethods(immer::flex_vector<std::string> newMethods);
+
+        /**
+         * Get the content of the m.verification.start event to send.
+         *
+         * @return The content of the m.verification.start event to send.
+         */
+        nlohmann::json obtainStartEventContent(RandomData random);
 
     private:
         struct Private;

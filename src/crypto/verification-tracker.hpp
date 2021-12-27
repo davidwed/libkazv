@@ -48,6 +48,8 @@ namespace Kazv
         };
     }
 
+    std::string idealMethod(immer::flex_vector<std::string> methods);
+
     using VerificationTrackerAction =
         std::variant<VerificationTrackerActions::SendEvent,
                      VerificationTrackerActions::DisplayCodes,

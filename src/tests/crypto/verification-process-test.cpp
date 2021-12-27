@@ -13,6 +13,8 @@
 #include <verification-process.hpp>
 #include <verification-tracker.hpp>
 
+#include <debug.hpp>
+
 using namespace Kazv;
 
 // Taken from https://matrix.org/docs/spec/client_server/r0.6.1
@@ -216,6 +218,21 @@ static nlohmann::json firstEventSent(VerificationTrackerResult res)
     return std::get<VerificationTrackerActions::SendEvent>(*it).event;
 }
 
+static nlohmann::json firstEventSentOfType(VerificationTrackerResult res, std::string type)
+{
+    auto it = std::find_if(res.begin(), res.end(), [type](const auto &action) {
+        auto isEvent = std::holds_alternative<VerificationTrackerActions::SendEvent>(action);
+        if (!isEvent) {
+            return false;
+        }
+
+        auto event = std::get<VerificationTrackerActions::SendEvent>(action).event;
+        return event.contains("type") && event["type"] == type;
+    });
+    return std::get<VerificationTrackerActions::SendEvent>(*it).event;
+}
+
+
 static bool sendsNothing(VerificationTrackerResult res)
 {
     return std::all_of(res.begin(), res.end(), [](const auto &action) {
@@ -336,7 +353,8 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
         REQUIRE(displays(processRequestRes.at(0)));
         REQUIRE(sendsStart(processRequestRes));
     }
-    auto startEvent = firstEventSent(processRequestRes);
+    auto startEvent = firstEventSentOfType(processRequestRes, "m.key.verification.start");
+    kzo.crypto.dbg() << "startEvent is " << startEvent.dump() << std::endl;
 
     auto processStartRes = alice.process(bobUid, startEvent,
         genRandomData(VerificationTracker::processRandomSize(startEvent)), ts);

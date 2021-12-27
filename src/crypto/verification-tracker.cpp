@@ -32,14 +32,14 @@ namespace Kazv
             [](auto method) { return supportedVerificationMethods.count(method); });
     }
 
-    static std::string idealMethod(immer::flex_vector<std::string> /* methods */)
+    std::string idealMethod(immer::flex_vector<std::string> /* methods */)
     {
-        return "m.sas.v1";
+        return SASVerificationProcess::name();
     }
 
     static std::size_t processRequestRandomSize(std::string method)
     {
-        if (method == "m.sas.v1") {
+        if (method == SASVerificationProcess::name()) {
             return SASVerificationProcess::constructRandomSize();
         }
 
@@ -48,7 +48,7 @@ namespace Kazv
 
     static std::size_t processStartRandomSize(std::string method)
     {
-        if (method == "m.sas.v1") {
+        if (method == SASVerificationProcess::name()) {
             return SASVerificationProcess::constructRandomSize();
         }
 
@@ -121,7 +121,7 @@ namespace Kazv
         std::string userId;
         std::string deviceId;
 
-        using ProcessMap = immer::map<std::string, immer::map<std::string, VerificationProcess>>;
+        using ProcessMap = std::unordered_map<std::string, std::unordered_map<std::string, VerificationProcess>>;
 
         ProcessMap processes;
 
@@ -149,6 +149,14 @@ namespace Kazv
     std::string VerificationTracker::Private::nextTxnId(Timestamp ts)
     {
         return std::to_string(ts);
+    }
+
+    void VerificationTracker::Private::addProcess(std::string userId, immer::flex_vector<std::string> deviceIds, VerificationProcess process)
+    {
+        for (auto deviceId : deviceIds) {
+            processes.try_emplace(userId);
+            processes[userId][deviceId] = process;
+        }
     }
 
     VerificationTracker::VerificationTracker()
@@ -231,7 +239,10 @@ namespace Kazv
 
             auto theirDeviceId = event["content"]["from_device"].template get<std::string>();
 
-            // TODO: add a new process to the tracker
+            auto txnId = m_d->nextTxnId(ts);
+
+            m_d->addProcess(theirUserId, { theirDeviceId }, VerificationProcess(VerificationProcess::ToDeviceTag{}, ts, txnId, methods));
+
             auto notifyAction = TrackerAct{ShowStatus{theirUserId, theirDeviceId, ShowStatus::Status::Requested}};
 
             auto sendReadyAction = TrackerAct{SendEvent{
@@ -240,12 +251,10 @@ namespace Kazv
                 m_d->makeEvent(
                     "m.key.verification.ready",
                     ts,
-                    m_d->nextTxnId(ts),
+                    txnId,
                     nlohmann::json::object({{"methods", nlohmann::json::array({ methodToUse })}})
                 )
             }};
-
-            // TODO: send a real start event for the method
 
             auto sendStartAction = TrackerAct{SendEvent{
                 theirUserId,
@@ -253,8 +262,8 @@ namespace Kazv
                 m_d->makeEvent(
                     "m.key.verification.start",
                     ts,
-                    m_d->nextTxnId(ts),
-                    nlohmann::json::object({{"methods", nlohmann::json::array({ methodToUse })}})
+                    txnId,
+                    m_d->processes[theirUserId][theirDeviceId].obtainStartEventContent(random)
                 )
             }};
 
@@ -268,14 +277,20 @@ namespace Kazv
     VerificationTrackerResult VerificationTracker::requestVerification(
         std::string userId, immer::flex_vector<std::string> deviceIds, Timestamp ts)
     {
+        auto txnId = m_d->nextTxnId(ts);
+        auto methods = immer::flex_vector<std::string>(supportedVerificationMethods.begin(), supportedVerificationMethods.end());
+        auto proc = VerificationProcess(VerificationProcess::ToDeviceTag{}, ts, txnId, methods);
+
+        m_d->addProcess(userId, deviceIds, proc);
+
         auto sendEventAction = TrackerAct(SendEvent{
             userId,
             deviceIds,
             m_d->makeEvent(
                 "m.key.verification.request",
                 ts,
-                m_d->nextTxnId(ts),
-                nlohmann::json::object({{"methods", supportedVerificationMethods}})
+                txnId,
+                nlohmann::json::object({{"methods", methods}})
             )
         });
 
