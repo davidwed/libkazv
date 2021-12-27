@@ -38,7 +38,8 @@ namespace Kazv
             {
                 Cancelled,
                 Verified,
-                VerificationFailed
+                VerificationFailed,
+                Requested
             };
 
             std::string userId;
@@ -82,11 +83,12 @@ namespace Kazv
         /**
          * Process the event.
          *
+         * @param userId The user id of the sender of the event.
          * @param event A json of the m.key.verification.* event.
          * @param random Random data needed to process the event.
          * @param ts The current timestamp.
          */
-        VerificationTrackerResult process(const nlohmann::json &event, RandomData random, Timestamp ts);
+        VerificationTrackerResult process(std::string userId, const nlohmann::json &event, RandomData random, Timestamp ts);
 
         /**
          * Create a new verification request.

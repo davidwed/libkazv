@@ -276,10 +276,11 @@ TEST_CASE("VerificationTracker process() error handling", "[client][verification
     auto tracker = VerificationTracker{};
 
     auto afterReasonablyShortTime = requestEvent["content"]["timestamp"].template get<Timestamp>() + 1;
+    auto uid = std::string("@u:a.b");
 
     WHEN ("processing a request way long ago") {
         auto afterTenMins = requestEvent["content"]["timestamp"].template get<Timestamp>() + 10 * 60 * 1000 + 1;
-        auto res = tracker.process(requestEvent, random, afterTenMins);
+        auto res = tracker.process(uid, requestEvent, random, afterTenMins);
 
         THEN ("we should ignore and send cancellation") {
             REQUIRE(displaysNothing(res));
@@ -289,7 +290,7 @@ TEST_CASE("VerificationTracker process() error handling", "[client][verification
 
     WHEN ("processing a request way in the future") {
         auto beforeFiveMins = requestEvent["content"]["timestamp"].template get<Timestamp>() - 5 * 60 * 1000 - 1;
-        auto res = tracker.process(requestEvent, random, beforeFiveMins);
+        auto res = tracker.process(uid, requestEvent, random, beforeFiveMins);
 
         THEN ("we should ignore and send cancellation") {
             REQUIRE(displaysNothing(res));
@@ -298,7 +299,7 @@ TEST_CASE("VerificationTracker process() error handling", "[client][verification
     }
 
     WHEN ("processing a non-request, non-cancel event whose transaction id is never encountered") {
-        auto res = tracker.process(sasAcceptEvent, random, afterReasonablyShortTime);
+        auto res = tracker.process(uid, sasAcceptEvent, random, afterReasonablyShortTime);
         THEN ("we should ignore and send cancellation") {
             REQUIRE(displaysNothing(res));
             REQUIRE(sendsCancellation(res));
@@ -306,7 +307,7 @@ TEST_CASE("VerificationTracker process() error handling", "[client][verification
     }
 
     WHEN ("processing a cancel event whose transaction id is never encountered") {
-        auto res = tracker.process(cancelEvent, random, afterReasonablyShortTime);
+        auto res = tracker.process(uid, cancelEvent, random, afterReasonablyShortTime);
         THEN ("we should ignore only") {
             REQUIRE(displaysNothing(res));
             REQUIRE(sendsNothing(res));
@@ -316,18 +317,20 @@ TEST_CASE("VerificationTracker process() error handling", "[client][verification
 
 TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
 {
-    auto alice = VerificationTracker("@alice:example.org", "AliceDevice1");
-    auto bob = VerificationTracker("@bob:example.org", "BobDevice1");
+    auto aliceUid = std::string("@alice:example.org");
+    auto bobUid = std::string("@bob:example.org");
+    auto alice = VerificationTracker(aliceUid, "AliceDevice1");
+    auto bob = VerificationTracker(bobUid, "BobDevice1");
 
     auto ts = 1000;
-    auto requestRes = alice.requestVerification("@bob:example.org", {"BobDevice1"}, ts);
+    auto requestRes = alice.requestVerification(bobUid, {"BobDevice1"}, ts);
 
     THEN ("Alice should send a request event and notify") {
         REQUIRE(sendsRequest(requestRes));
     }
     auto requestEvent = firstEventSent(requestRes);
 
-    auto processRequestRes = bob.process(requestEvent,
+    auto processRequestRes = bob.process(aliceUid, requestEvent,
         genRandomData(VerificationTracker::processRandomSize(requestEvent)), ts);
     THEN ("Bob should notify first and start sas") {
         REQUIRE(displays(processRequestRes.at(0)));
@@ -335,7 +338,7 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
     }
     auto startEvent = firstEventSent(processRequestRes);
 
-    auto processStartRes = alice.process(startEvent,
+    auto processStartRes = alice.process(bobUid, startEvent,
         genRandomData(VerificationTracker::processRandomSize(startEvent)), ts);
     THEN ("Alice should notify first and accept sas") {
         REQUIRE(displays(processStartRes.at(0)));
@@ -343,7 +346,7 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
     }
     auto acceptEvent = firstEventSent(processStartRes);
 
-    auto processAcceptRes = bob.process(acceptEvent,
+    auto processAcceptRes = bob.process(aliceUid, acceptEvent,
         genRandomData(VerificationTracker::processRandomSize(acceptEvent)), ts);
     THEN ("Bob should notify and send key") {
         REQUIRE(!displaysNothing(processAcceptRes));
@@ -351,7 +354,7 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
     }
     auto bobKeyEvent = firstEventSent(processAcceptRes);
 
-    auto aliceProcessKeyRes = alice.process(bobKeyEvent,
+    auto aliceProcessKeyRes = alice.process(bobUid, bobKeyEvent,
         genRandomData(VerificationTracker::processRandomSize(bobKeyEvent)), ts);
     THEN ("Alice should send key and display code") {
         REQUIRE(!displaysNothing(aliceProcessKeyRes));
@@ -359,7 +362,7 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
     }
     auto aliceKeyEvent = firstEventSent(aliceProcessKeyRes);
 
-    auto bobProcessKeyRes = bob.process(aliceKeyEvent,
+    auto bobProcessKeyRes = bob.process(aliceUid, aliceKeyEvent,
         genRandomData(VerificationTracker::processRandomSize(aliceKeyEvent)), ts);
     THEN ("Bob should display code first and send mac") {
         REQUIRE(displaysCode(bobProcessKeyRes.at(0)));
@@ -367,7 +370,7 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
     }
     auto bobMacEvent = firstEventSent(bobProcessKeyRes);
 
-    auto aliceProcessMacRes = alice.process(bobMacEvent,
+    auto aliceProcessMacRes = alice.process(bobUid, bobMacEvent,
         genRandomData(VerificationTracker::processRandomSize(bobMacEvent)), ts);
     THEN ("Alice should send mac and show success") {
         REQUIRE(sendsMac(aliceProcessMacRes));
@@ -375,7 +378,7 @@ TEST_CASE("VerificationTracker full process", "[client][verification-proc]")
     }
     auto aliceMacEvent = firstEventSent(aliceProcessMacRes);
 
-    auto bobProcessMacRes = bob.process(aliceMacEvent,
+    auto bobProcessMacRes = bob.process(aliceUid, aliceMacEvent,
         genRandomData(VerificationTracker::processRandomSize(aliceMacEvent)), ts);
     THEN ("Bob should show success") {
         REQUIRE(sendsNothing(bobProcessMacRes));

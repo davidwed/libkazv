@@ -19,6 +19,10 @@
 
 namespace Kazv
 {
+    using namespace VerificationTrackerActions;
+    using TrackerAct = VerificationTrackerAction;
+    using TrackerRes = VerificationTrackerResult;
+
     static const auto supportedVerificationMethods =
         immer::set<std::string>{}.insert("m.sas.v1");
 
@@ -58,27 +62,108 @@ namespace Kazv
             && event["content"].is_object()
             && event.contains("type")
             && event["type"].is_string()
-            && (event["content"].contains("transaction_id")
-                && event["content"]["transaction_id"].is_string());
+            && event["content"].contains("from_device")
+            && event["content"]["from_device"].is_string()
+            && (
+                event["content"].contains("transaction_id")
+                && event["content"]["transaction_id"].is_string()
+            );
+    }
+
+    namespace
+    {
+        enum CheckStatus
+        {
+            Ok,
+            NotOfType,
+            NotWellFormed
+        };
+    }
+
+    static CheckStatus isRequest(const nlohmann::json &event)
+    {
+        if (!(event["type"].template get<std::string>() == "m.key.verification.request")) {
+            return NotOfType;
+        }
+
+        if (!(event["content"].contains("methods") && event["content"]["methods"].is_array())) {
+            kzo.crypto.dbg() << "methods not an array" << std::endl;
+            return NotWellFormed;
+        }
+
+        return Ok;
+    }
+
+    static CheckStatus isReady(const nlohmann::json &event)
+    {
+        if (!(event["type"].template get<std::string>() == "m.key.verification.ready")) {
+            return NotOfType;
+        }
+
+        if (!(event["content"].contains("methods") && event["content"]["methods"].is_array())) {
+            kzo.crypto.dbg() << "methods not an array" << std::endl;
+            return NotWellFormed;
+        }
+
+        return Ok;
+    }
+
+    using Methods = immer::flex_vector<std::string>;
+
+    static Methods methodsForEvent(const nlohmann::json &event)
+    {
+        return event["content"]["methods"]
+            .template get<immer::flex_vector<std::string>>();
     }
 
     struct VerificationTracker::Private
     {
+        std::string userId;
+        std::string deviceId;
+
+        using ProcessMap = immer::map<std::string, immer::map<std::string, VerificationProcess>>;
+
+        ProcessMap processes;
+
+        nlohmann::json makeEvent(std::string type, Timestamp ts, std::string txnId, nlohmann::json content) const;
+        std::string nextTxnId(Timestamp ts);
+        bool hasExistingProcessForIncomingEvent(const nlohmann::json &event) const;
+        void addProcess(std::string userId, immer::flex_vector<std::string> deviceIds, VerificationProcess process);
+        void removeProcess(std::string userId, immer::flex_vector<std::string> deviceIds);
     };
 
+    nlohmann::json VerificationTracker::Private::makeEvent(std::string type, Timestamp ts, std::string txnId, nlohmann::json content) const
+    {
+        auto ev = nlohmann::json{
+            {"type", type},
+            {"content", content}
+        };
+
+        ev["content"]["from_device"] = deviceId;
+        ev["content"]["timestamp"] = ts;
+        ev["content"]["transaction_id"] = txnId;
+
+        return ev;
+    }
+
+    std::string VerificationTracker::Private::nextTxnId(Timestamp ts)
+    {
+        return std::to_string(ts);
+    }
+
     VerificationTracker::VerificationTracker()
+        : m_d(new Private{})
     {
     }
 
     VerificationTracker::VerificationTracker(std::string userId, std::string deviceId)
+        : m_d(new Private{userId, deviceId, {}})
     {
     }
 
     KAZV_DEFINE_COPYABLE_UNIQUE_PTR(VerificationTracker, m_d);
 
-    VerificationTracker::~VerificationTracker()
-    {
-    }
+    VerificationTracker::~VerificationTracker() = default;
 
     std::size_t VerificationTracker::processRandomSize(const nlohmann::json &event)
     {
@@ -88,19 +173,19 @@ namespace Kazv
 
         kzo.crypto.dbg() << "event: " << event.dump() << std::endl;
 
-        if (event["type"].template get<std::string>() == "m.key.verification.request") {
-            if (!(event["content"].contains("methods") && event["content"]["methods"].is_array())) {
-                kzo.crypto.dbg() << "methods not an array" << std::endl;
-                return 0;
-            }
+        auto checkRequestRes = isRequest(event);
+        if (checkRequestRes == NotWellFormed) {
+            return 0;
+        }
 
-            auto methods = event["content"]["methods"]
-                .template get<immer::flex_vector<std::string>>();
+        if (checkRequestRes != NotOfType) {
+            auto methods = methodsForEvent(event);
             if (methodSupported(methods)) {
                 kzo.crypto.dbg() << "methods supported" << std::endl;
                 return processRequestRandomSize(idealMethod(methods));
             }
             kzo.crypto.dbg() << "methods not supported" << std::endl;
+
             return 0;
         }
 
@@ -120,14 +205,80 @@ namespace Kazv
         return 0;
     }
 
-    VerificationTrackerResult VerificationTracker::process(const nlohmann::json &event, RandomData random, Timestamp ts)
+    VerificationTrackerResult VerificationTracker::process(std::string theirUserId, const nlohmann::json &event, RandomData random, Timestamp ts)
     {
+        auto sendCancel = TrackerRes{}; // TODO
+        if (!isEventWellFormed(event)) {
+            return sendCancel;
+        }
+
+        // Process request event
+        auto checkRequestRes = isRequest(event);
+        if (checkRequestRes != NotOfType) {
+            if (checkRequestRes == NotWellFormed) {
+                return sendCancel;
+            }
+
+            auto methods = event["content"]["methods"]
+                .template get<immer::flex_vector<std::string>>();
+            if (!methodSupported(methods)) {
+                kzo.crypto.warn() << "We do not support any methods provided." << std::endl;
+                return sendCancel;
+            }
+
+            auto methodToUse = idealMethod(methods);
+            kzo.crypto.dbg() << "choosing method: " << methodToUse << std::endl;
+
+            auto theirDeviceId = event["content"]["from_device"].template get<std::string>();
+
+            // TODO: add a new process to the tracker
+            auto notifyAction = TrackerAct{ShowStatus{theirUserId, theirDeviceId, ShowStatus::Status::Requested}};
+
+            auto sendReadyAction = TrackerAct{SendEvent{
+                theirUserId,
+                { theirDeviceId },
+                m_d->makeEvent(
+                    "m.key.verification.ready",
+                    ts,
+                    m_d->nextTxnId(ts),
+                    nlohmann::json::object({{"methods", nlohmann::json::array({ methodToUse })}})
+                )
+            }};
+
+            // TODO: send a real start event for the method
+
+            auto sendStartAction = TrackerAct{SendEvent{
+                theirUserId,
+                { theirDeviceId },
+                m_d->makeEvent(
+                    "m.key.verification.start",
+                    ts,
+                    m_d->nextTxnId(ts),
+                    nlohmann::json::object({{"methods", nlohmann::json::array({ methodToUse })}})
+                )
+            }};
+
+            return TrackerRes{notifyAction, sendReadyAction, sendStartAction};
+        }
+
+
         return {};
     }
 
     VerificationTrackerResult VerificationTracker::requestVerification(
         std::string userId, immer::flex_vector<std::string> deviceIds, Timestamp ts)
     {
-        return {};
+        auto sendEventAction = TrackerAct(SendEvent{
+            userId,
+            deviceIds,
+            m_d->makeEvent(
+                "m.key.verification.request",
+                ts,
+                m_d->nextTxnId(ts),
+                nlohmann::json::object({{"methods", supportedVerificationMethods}})
+            )
+        });
+
+        return TrackerRes{sendEventAction};
     }
 }

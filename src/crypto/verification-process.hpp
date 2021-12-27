@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 
 #include <copy-helper.hpp>
+#include <event.hpp>
 
 #include "crypto-util.hpp"
 
@@ -126,6 +127,34 @@ namespace Kazv
          * @return The json of the m.verification.start event to send.
          */
         nlohmann::json startEvent() const;
+
+    private:
+        struct Private;
+        std::unique_ptr<Private> m_d;
+    };
+
+    class VerificationProcess
+    {
+    public:
+        struct ToDeviceTag {};
+
+        struct ToRoomTag {};
+
+        VerificationProcess();
+
+        /**
+         * Construct a VerificationProcess that is to send via a to-device message.
+         */
+        VerificationProcess(ToDeviceTag, Timestamp ts, std::string txnId, immer::flex_vector<std::string> methods);
+
+        KAZV_DECLARE_COPYABLE(VerificationProcess)
+
+        ~VerificationProcess();
+
+        /**
+         * The methods this process supports.
+         */
+        immer::flex_vector<std::string> methods() const;
 
     private:
         struct Private;

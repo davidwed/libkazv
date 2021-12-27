@@ -22,4 +22,28 @@ namespace Kazv
 
         return size;
     }
+
+    struct SASVerificationProcess::Private
+    {
+    };
+
+
+    SASVerificationProcess::~SASVerificationProcess() = default;
+
+    struct VerificationProcess::Private
+    {
+    };
+
+    VerificationProcess::VerificationProcess()
+        : m_d(new Private)
+    {}
+
+    VerificationProcess::VerificationProcess(ToDeviceTag, Timestamp ts, std::string txnId, immer::flex_vector<std::string> methods)
+        : m_d(new Private)
+    {
+    }
+
+    KAZV_DEFINE_COPYABLE_UNIQUE_PTR(VerificationProcess, m_d)
+
+    VerificationProcess::~VerificationProcess() = default;
 }
