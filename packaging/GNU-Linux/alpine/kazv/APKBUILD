@@ -9,14 +9,13 @@ source="libkazv.tar.gz::https://lily.kazv.moe/kazv/libkazv/-/archive/servant/lib
 builddir="${srcdir}/libkazv-servant"
 makedepends="cmake boost-dev olm-dev curl-dev lager immer zug nlohmann-json olm-dev crypto++-dev"
 depends="lager immer zug boost nlohmann-json olm crypto++" # crypto++ need testing respority
-JOBS=5
 options="!check"  # Not tested yet
 
 build() {
     mkdir ${builddir}/build
     cd ${builddir}/build
-    cmake .. -Dlibkazv_BUILD_EXAMPLES=OFF -Dlibkazv_BUILD_TESTS=OFF -Dlibkazv_BUILD_KAZVJOB=OFF
-    make -j$JOBS
+    cmake .. -DCMAKE_INSTALL_PREFIX="/usr" -Dlibkazv_BUILD_EXAMPLES=OFF -Dlibkazv_BUILD_TESTS=OFF -Dlibkazv_BUILD_KAZVJOB=OFF
+    make 
 }
 
 package() {
