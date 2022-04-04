@@ -7,9 +7,10 @@ arch=x86_64
 url="https://lily.kazv.moe/kazv/libkazv"
 source="libkazv.tar.gz::https://lily.kazv.moe/kazv/libkazv/-/archive/servant/libkazv-servant.tar.gz"
 builddir="${srcdir}/libkazv-servant"
-makedepends="cmake boost-dev olm-dev curl-dev lager immer zug nlohmann-json olm-dev crypto++-dev"
 depends="cpr lager immer zug boost nlohmann-json olm crypto++" # crypto++ need testing respority
-options="!check"  # Not tested yet
+makedepends="cmake boost-dev olm-dev curl-dev lager immer zug nlohmann-json olm-dev crypto++-dev"
+checkdepends="catch2"
+options="!check"  # Failed to compile after adding tests
 
 build() {
     mkdir ${builddir}/build
