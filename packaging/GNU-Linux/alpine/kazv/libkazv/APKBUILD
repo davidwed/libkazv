@@ -9,7 +9,7 @@ source="libkazv.tar.gz::https://lily.kazv.moe/kazv/libkazv/-/archive/servant/lib
 builddir="${srcdir}/libkazv-servant"
 depends="cpr lager immer zug boost nlohmann-json olm crypto++" # crypto++ need testing respority
 makedepends="cmake boost-dev olm-dev curl-dev lager immer zug nlohmann-json olm-dev crypto++-dev"
-checkdepends="catch2"
+checkdepends="catch2 libhttpserver"
 options="!check"  # Failed to compile after adding tests
 
 build() {
